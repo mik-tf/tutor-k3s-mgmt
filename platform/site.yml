@@ -1,0 +1,26 @@
+---
+- name: Deploy Open edX Tutor on K3s (Local Execution)
+  hosts: local # Target the localhost defined in inventory.ini
+  connection: local # Explicitly use local connection
+  gather_facts: yes # Gather facts about the management node
+
+  vars_files:
+    # Load variables directly from inventory using [local:vars] for simplicity now
+    # - vars/config.yml # Alternative: Load from separate vars file if inventory gets too cluttered
+    - "{{ playbook_dir }}/roles/tutor_prereqs/defaults/main.yml"
+    - "{{ playbook_dir }}/roles/tutor_config/defaults/main.yml"
+    - "{{ playbook_dir }}/roles/tutor_deploy/defaults/main.yml"
+    - "{{ playbook_dir }}/roles/tutor_destroy/defaults/main.yml"
+
+  roles:
+    - role: tutor_prereqs
+      tags: [always, tutor_prereqs] # Run basic checks always, full install on tag
+
+    - role: tutor_config
+      tags: [tutor_config]
+
+    - role: tutor_deploy
+      tags: [tutor_deploy]
+
+    - role: tutor_destroy
+      tags: [tutor_destroy]

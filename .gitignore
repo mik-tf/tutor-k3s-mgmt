@@ -1,0 +1,33 @@
+# Ansible artifacts
+*.retry
+*.lock
+
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+*.egg-info/
+*.egg
+dist/
+build/
+
+# Local configuration (optional, if not tracked)
+# platform/inventory.ini
+
+# IDE specific
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+
+#  AI files
+all_files_text.txt

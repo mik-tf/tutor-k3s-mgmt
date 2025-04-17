@@ -1,0 +1,60 @@
+---
+# Tasks to configure Tutor (config.yml, plugins)
+
+- name: Ensure Tutor config directory exists
+  ansible.builtin.file:
+    path: "{{ tutor_config_dir }}"
+    state: directory
+    mode: "0700"
+
+- name: Create Tutor config.yml from template
+  ansible.builtin.template:
+    src: config.yml.j2
+    dest: "{{ tutor_config_file }}"
+    mode: "0600"
+  register: config_templated
+
+- name: Get currently enabled Tutor plugins
+  ansible.builtin.command: bash ../../scripts/tutor_cmd.sh plugins list --enabled
+  register: enabled_plugins_raw
+  changed_when: false # Listing plugins doesn't change state
+
+- name: Parse enabled plugins list
+  set_fact:
+    enabled_plugins: "{{ enabled_plugins_raw.stdout_lines | map('regex_replace', '^\\s*([^\\s]+)\\s*.*$', '\\1') | list }}"
+  when: enabled_plugins_raw.stdout_lines is defined
+
+- name: Debug - Show enabled plugins
+  ansible.builtin.debug:
+    var: enabled_plugins
+  when: enabled_plugins is defined
+
+- name: Ensure required Tutor plugins are enabled
+  ansible.builtin.command: "bash ../../scripts/tutor_cmd.sh plugins enable {{ item.name }}"
+  loop: "{{ tutor_plugins_required | default([]) }}"
+  when:
+    - item.enabled | default(false) | bool
+    - item.name not in enabled_plugins | default([])
+  register: plugin_enable_result
+  changed_when: "'enabled' in plugin_enable_result.stdout"
+
+- name: Ensure plugins marked as disabled are disabled (optional safety)
+  ansible.builtin.command: "bash ../../scripts/tutor_cmd.sh plugins disable {{ item.name }}"
+  loop: "{{ tutor_plugins_required | default([]) }}"
+  when:
+    - not item.enabled | default(true) | bool # Check if explicitly set to false
+    - item.name in enabled_plugins | default([])
+  register: plugin_disable_result
+  changed_when: "'disabled' in plugin_disable_result.stdout"
+
+- name: Save Tutor configuration idempotently
+  ansible.builtin.command: bash ../../scripts/tutor_cmd.sh config save
+  # Run 'config save' if the template changed OR if any plugins were enabled/disabled
+  when: config_templated.changed or (plugin_enable_result is defined and plugin_enable_result.changed) or (plugin_disable_result is defined and plugin_disable_result.changed)
+  register: config_save_result
+  changed_when: "'Configuration saved' in config_save_result.stdout"
+
+- name: Debug config save output
+  ansible.builtin.debug:
+    var: config_save_result.stdout_lines
+  when: config_save_result is defined and config_save_result.stdout_lines is defined

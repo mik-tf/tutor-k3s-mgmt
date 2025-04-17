@@ -1,0 +1,3 @@
+---
+# Defaults for tutor_destroy role
+k8s_namespace: "openedx" # Namespace to target for destruction

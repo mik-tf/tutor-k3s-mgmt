@@ -1,0 +1,86 @@
+---
+# Tasks to deploy Open edX using Tutor k8s commands
+
+- name: Check if openedx namespace exists
+  kubernetes.core.k8s_info:
+    kind: Namespace
+    name: "{{ k8s_namespace }}"
+  register: ns_check
+  ignore_errors: yes # Ignore if namespace doesn't exist yet
+
+- name: Determine if this is the first deployment (namespace does not exist)
+  set_fact:
+    first_deployment: "{{ ns_check is defined and ns_check.failed | default(true) }}" # True if ns_check failed (namespace not found)
+
+- name: Debug first deployment status
+  ansible.builtin.debug:
+    msg: "Is this the first deployment? {{ first_deployment }}"
+
+# Note: Tutor v14+ suggests 'tutor k8s launch' handles both initial and subsequent deployments.
+# 'quickstart' is more for guided setup. We use launch for automation.
+# See: https://docs.tutor.edly.io/reference/cli/k8s.html#tutor-k8s-launch
+
+# - name: Run Tutor K8s Quickstart (only on first deployment)
+#   ansible.builtin.command: bash ../../scripts/tutor_cmd.sh k8s quickstart -n --non-interactive
+#   when: first_deployment | bool
+#   register: quickstart_result
+#   changed_when: quickstart_result.rc == 0
+#   async: 1800 # Long timeout (30 mins) for initial setup
+#   poll: 30
+
+- name: Run Tutor K8s Launch (for initial and subsequent deploys)
+  ansible.builtin.command: bash ../../scripts/tutor_cmd.sh k8s launch --non-interactive
+  # when: not first_deployment | bool # Run if not first, OR always if launch handles initialization
+  register: launch_result
+  changed_when: "'Applying scheduled changes' in launch_result.stdout or 'No changes detected' not in launch_result.stdout"
+  failed_when: launch_result.rc != 0 and 'Nothing to do' not in launch_result.stderr # Allow rc=1 if message is "Nothing to do"
+  async: 1800 # Long timeout (30 mins)
+  poll: 30 # Check every 30 seconds
+
+- name: Debug launch result
+  ansible.builtin.debug:
+    var: launch_result
+  when: launch_result is defined
+
+# Optional: Wait for key deployments to become ready
+- name: Wait for LMS deployment to be ready
+  kubernetes.core.k8s_info:
+    kind: Deployment
+    name: lms
+    namespace: "{{ k8s_namespace }}"
+    wait: yes
+    wait_condition:
+      type: Available
+      status: "True"
+    wait_timeout: "{{ wait_timeout }}"
+  register: lms_wait
+  until: not lms_wait.failed
+  retries: 3 # Retry waiting briefly
+  delay: 10
+  ignore_errors: yes # Don't fail playbook if wait times out, just report
+
+- name: Wait for CMS deployment to be ready
+  kubernetes.core.k8s_info:
+    kind: Deployment
+    name: cms
+    namespace: "{{ k8s_namespace }}"
+    wait: yes
+    wait_condition:
+      type: Available
+      status: "True"
+    wait_timeout: "{{ wait_timeout }}"
+  register: cms_wait
+  until: not cms_wait.failed
+  retries: 3
+  delay: 10
+  ignore_errors: yes
+
+- name: Final Deployment Status Message
+  ansible.builtin.debug:
+    msg: |
+      Open edX deployment initiated via 'tutor k8s launch'.
+      LMS Wait Status: {{ 'Ready' if lms_wait is defined and not lms_wait.failed else 'Timed Out/Not Ready/Error' }}
+      CMS Wait Status: {{ 'Ready' if cms_wait is defined and not cms_wait.failed else 'Timed Out/Not Ready/Error' }}
+      Monitor progress with: kubectl get pods -n {{ k8s_namespace }} -w
+      Find service IPs with: kubectl get svc -n {{ k8s_namespace }}
+      Check ingress controller IP: kubectl get svc -n ingress-nginx

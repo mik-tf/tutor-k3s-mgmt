@@ -1,0 +1,9 @@
+---
+# Defaults for tutor_prereqs role
+# (Variables defined in inventory.ini take precedence)
+tutor_version: "latest" # Default to latest if not specified in inventory
+pip_package: "python3-pip" # Package name for pip installer
+required_packages: # OS packages needed
+  - git
+  - python3 # Python itself
+  # Add others if discovered as necessary, e.g., build-essential for some pip installs

@@ -1,0 +1,61 @@
+---
+# Tasks to install Tutor CLI and dependencies on the management node
+
+- name: Ensure OS prerequisites are installed (git, python3-pip)
+  ansible.builtin.package:
+    name:
+      - "{{ pip_package }}"
+      - git
+      - python3 # Ensure python3 base is there
+    state: present
+  become: yes # Requires sudo to install system packages
+  register: pkg_result
+  until: pkg_result is succeeded
+  retries: 3
+  delay: 5
+
+- name: Ensure ~/.local/bin exists
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.local/bin"
+    state: directory
+    mode: "0755"
+
+- name: Ensure ~/.local/bin is in PATH (for current and future sessions)
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_env.HOME }}/.bashrc"
+    regexp: '^export PATH="\$HOME/\.local/bin:\$PATH"'
+    line: 'export PATH="$HOME/.local/bin:$PATH"'
+    create: yes
+    mode: "0644"
+  # This only affects future shells; scripts/install.sh sources .bashrc for current session
+
+- name: Install/Upgrade Tutor CLI using pip (user install)
+  ansible.builtin.pip:
+    name: "tutor[full]" # Install tutor with all dependencies
+    version: "{{ tutor_version if tutor_version != 'latest' else omit }}"
+    state: "{{ 'latest' if tutor_version == 'latest' else 'present' }}"
+    extra_args: "--user" # Install in user space (~/.local/)
+    executable: python3 -m pip # Explicitly use pip module of python3
+  register: pip_install
+  until: pip_install is succeeded
+  retries: 3
+  delay: 10 # Give pip some time
+
+- name: Verify tutor command is accessible after install
+  ansible.builtin.command: bash -c "source ~/.bashrc && command -v tutor"
+  register: tutor_path_check
+  changed_when: false
+  failed_when: tutor_path_check.rc != 0
+  environment:
+    PATH: "{{ ansible_env.HOME }}/.local/bin:{{ ansible_env.PATH }}" # Ensure PATH includes user bin
+
+- name: Display tutor version
+  ansible.builtin.command: bash ../../scripts/tutor_cmd.sh --version
+  register: tutor_version_output
+  changed_when: false
+  when: tutor_path_check.rc == 0
+
+- name: Show tutor version found
+  ansible.builtin.debug:
+    msg: "Found Tutor version: {{ tutor_version_output.stdout }}"
+  when: tutor_version_output.stdout is defined

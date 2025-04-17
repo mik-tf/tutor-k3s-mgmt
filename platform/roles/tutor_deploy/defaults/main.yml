@@ -1,0 +1,4 @@
+---
+# Defaults for tutor_deploy role
+k8s_namespace: "openedx" # Ensure consistency
+wait_timeout: "5m" # Timeout for waiting on resources

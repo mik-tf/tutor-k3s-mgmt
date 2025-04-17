@@ -1,0 +1,11 @@
+---
+# Defaults for tutor_config role
+tutor_config_dir: "{{ ansible_env.HOME }}/.local/share/tutor"
+tutor_config_file: "{{ tutor_config_dir }}/config.yml"
+
+# Default empty lists/dictionaries if not defined in inventory
+tutor_plugins_required: []
+k8s_namespace: "openedx" # Default k8s namespace
+default_from_email: "noreply@{{ lms_host | default('example.com') }}"
+# Default common settings that might be omitted in inventory
+enable_mfe: true

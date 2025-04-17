@@ -1,0 +1,14 @@
+---
+# Tasks to destroy the Open edX K8s deployment
+
+- name: Run Tutor K8s Destroy command
+  ansible.builtin.command: bash ../../scripts/tutor_cmd.sh k8s destroy -n --non-interactive
+  register: destroy_result
+  changed_when: destroy_result.rc == 0 # Considered changed if command succeeds
+  async: 600 # 10 min timeout
+  poll: 15
+
+- name: Debug destroy result
+  ansible.builtin.debug:
+    var: destroy_result
+  when: destroy_result is defined
