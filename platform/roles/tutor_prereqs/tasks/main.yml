@@ -1,3 +1,4 @@
+# platform/roles/tutor_prereqs/tasks/main.yml
 ---
 # Tasks to install Tutor CLI and dependencies on the management node
 
@@ -8,17 +9,27 @@
       - git
       - python3 # Ensure python3 base is there
     state: present
+    update_cache: yes # Add update_cache for reliability
   become: yes # Requires sudo to install system packages
   register: pkg_result
   until: pkg_result is succeeded
   retries: 3
   delay: 5
 
+# *** ADDED VERIFICATION STEP ***
+- name: Verify pip is installed and accessible via python3 -m pip
+  ansible.builtin.command: python3 -m pip --version
+  register: pip_verify_check
+  changed_when: false
+  become: no # Run as the ansible user
+  failed_when: pip_verify_check.rc != 0
+  tags: always # Run this check even if skipping other prereq tasks later
+
 - name: Ensure ~/.local/bin exists
   ansible.builtin.file:
     path: "{{ ansible_env.HOME }}/.local/bin"
     state: directory
-    mode: "0755"
+    mode: '0755'
 
 - name: Ensure ~/.local/bin is in PATH (for current and future sessions)
   ansible.builtin.lineinfile:
@@ -26,16 +37,16 @@
     regexp: '^export PATH="\$HOME/\.local/bin:\$PATH"'
     line: 'export PATH="$HOME/.local/bin:$PATH"'
     create: yes
-    mode: "0644"
-  # This only affects future shells; scripts/install.sh sources .bashrc for current session
+    mode: '0644'
 
+# *** MODIFIED PIP TASK ***
 - name: Install/Upgrade Tutor CLI using pip (user install)
   ansible.builtin.pip:
     name: "tutor[full]" # Install tutor with all dependencies
     version: "{{ tutor_version if tutor_version != 'latest' else omit }}"
     state: "{{ 'latest' if tutor_version == 'latest' else 'present' }}"
     extra_args: "--user" # Install in user space (~/.local/)
-    executable: python3 -m pip # Explicitly use pip module of python3
+    # executable: python3 -m pip # REMOVED executable parameter to let Ansible detect
   register: pip_install
   until: pip_install is succeeded
   retries: 3
@@ -47,7 +58,7 @@
   changed_when: false
   failed_when: tutor_path_check.rc != 0
   environment:
-    PATH: "{{ ansible_env.HOME }}/.local/bin:{{ ansible_env.PATH }}" # Ensure PATH includes user bin
+    PATH: "{{ ansible_env.HOME }}/.local/bin:{{ ansible_env.PATH }}"
 
 - name: Display tutor version
   ansible.builtin.command: bash ../../scripts/tutor_cmd.sh --version
@@ -59,3 +70,9 @@
   ansible.builtin.debug:
     msg: "Found Tutor version: {{ tutor_version_output.stdout }}"
   when: tutor_version_output.stdout is defined
+
+# *** ADDED DEBUG FOR PARSED INVENTORY VARIABLE ***
+- name: Debug parsed tutor_plugins_required variable
+  ansible.builtin.debug:
+    var: tutor_plugins_required
+  tags: always # Check how Ansible parsed the JSON string
