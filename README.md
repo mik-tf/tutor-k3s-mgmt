@@ -1,6 +1,6 @@
 # Tutor K3s Deployment for Open edX
 
-This repository automates the deployment of Open edX using Tutor's Kubernetes mode (`tutor k8s`) onto an *existing* K3s cluster provisioned by the `tfgrid-k3s` project.
+This repository automates the deployment of Open edX using Tutor's Kubernetes mode (`tutor k8s`) onto an *existing* K3s cluster provisioned by the [`tfgrid-k3s`](https://github.com/mik-tf/tfgrid-k3s) project.
 
 **This repository must be cloned and executed on the management node provisioned by `tfgrid-k3s`.**
 
@@ -30,8 +30,8 @@ This project uses Ansible, running locally on the management node, to:
 
 2.  **Clone this repository on the management node:**
     ```bash
-    git clone <your-tutor-k3s-repo-url>
-    cd tutor-k3s
+    git clone https://github.com/mik-tf/tutor-k3s-mgmt
+    cd tutor-k3s-mgmt
     ```
 
 3.  **Configure Deployment Variables:**
